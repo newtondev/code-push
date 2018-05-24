@@ -337,7 +337,7 @@ code-push release <appName> <updateContents> <targetBinaryVersion>
 
 给部署提供一个可选的"更新日志"。当被检测到有更新时这个值就会完整的传到客户端，所以你的应用可以选择显示给终端用户（如：通过一个`哪些新东西？`的对话框）。这个字符串可以接受控制字符如`\n` 和 `\t`，以便你可以包含空白格式在你的描述里来提高可读性。
 
-*注意：这个参数可以用"--description" 或 "-des"来设置。*
+*注意：这个参数可以用"--description" 或 "--des"来设置。*
 
 #### Mandatory (强制性)参数
 
@@ -393,10 +393,17 @@ code-push release-react <appName> <platform>
 [--development <development>]
 [--disabled <disabled>]
 [--entryFile <entryFile>]
+[--gradleFile <gradleFile>]
 [--mandatory]
+[--noDuplicateReleaseError]
+[--outputDir <outputDir>]
+[--plistFile <plistFile>]
+[--plistFilePrefix <plistFilePrefix>]
 [--sourcemapOutput <sourcemapOutput>]
 [--targetBinaryVersion <targetBinaryVersion>]
 [--rollout <rolloutPercentage>]
+[--privateKeyPath <pathToPrivateKey>]
+[--config <config>]
 ```
 `release-react`命令是React Native特有的[`发布`](#发布更新)命令，支持相同的所有参数（如：`--mandatory`,`--description`），然而通过如下额外的动作简化了发布更新过程：
 

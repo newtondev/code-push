@@ -27,6 +27,7 @@ CodePush is a cloud service that enables Cordova and React Native developers to 
 * [Viewing Release History](#viewing-release-history)
 * [Clearing Release History](#clearing-release-history)
 * [Code Signing](#code-signing)
+
 [[Chinese version 中文版]](./README-cn.md)
 
 <!-- CLI Catalog -->
@@ -312,7 +313,7 @@ It's important that the path you specify refers to the platform-specific, prepar
 
 | Platform                         | Prepare command                                                                                                                                            | Package path (relative to project root)                                                                     |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| Cordova (Android)                | `cordova prepare android`                                                                                                                                  | `./platforms/android/assets/www` directory 																 |
+| Cordova (Android)                | `cordova prepare android`                                                                                                                                  | For `cordova-android` version **7 and later**: `./platforms/android/app/src/main/assets/www` directory;<br>For `cordova-android` version **6 and earlier**: `./platforms/android/assets/www` directory;																 |
 | Cordova (iOS)                    | `cordova prepare ios`                                                                                                                                      | `./platforms/ios/www ` directory          															|
 | React Native wo/assets (Android) | `react-native bundle --platform android --entry-file <entryFile> --bundle-output <bundleOutput> --dev false`                                               | Value of the `--bundle-output` option      																 |
 | React Native w/assets (Android)  | `react-native bundle --platform android --entry-file <entryFile> --bundle-output <releaseFolder>/<bundleOutput> --assets-dest <releaseFolder> --dev false` | Value of the `--assets-dest` option, which should represent a newly created directory that includes your assets and JS bundle |
@@ -366,7 +367,7 @@ This specifies which deployment you want to release the update to. This defaults
 
 This provides an optional "change log" for the deployment. The value is simply round tripped to the client so that when the update is detected, your app can choose to display it to the end-user (e.g. via a "What's new?" dialog). This string accepts control characters such as `\n` and `\t` so that you can include whitespace formatting within your descriptions for improved readability.
 
-*NOTE: This parameter can be set using either "--description" or "-des"*
+*NOTE: This parameter can be set using either "--description" or "--des"*
 
 #### Disabled parameter
 
@@ -444,6 +445,7 @@ code-push release-react <appName> <platform>
 [--targetBinaryVersion <targetBinaryVersion>]
 [--rollout <rolloutPercentage>]
 [--privateKeyPath <pathToPrivateKey>]
+[--config <config>]
 ```
 
 The `release-react` command is a React Native-specific version of the "vanilla" [`release`](#releasing-app-updates) command, which supports all of the same parameters (e.g. `--mandatory`, `--description`), yet simplifies the process of releasing updates by performing the following additional behavior:
@@ -803,7 +805,7 @@ code-push promote MyApp-iOS Staging Production -t "*"
 
 ## Rolling Back Updates
 
-A deployment's release history is immutable, so you cannot delete or remove an update once it has been released. However, if you release an update that is broken or contains unintended features, it is easy to roll it back using the `rollback` command:
+A deployment's release history is immutable, so you cannot delete or remove individual updates once they have been released without deleting all of the deployment's release history. However, if you release an update that is broken or contains unintended features, it is easy to roll it back using the `rollback` command:
 
 ```
 code-push rollback <appName> <deploymentName>
@@ -857,7 +859,7 @@ By default, the history doesn't display the author of each release, but if you a
 
 ## Clearing Release History
 
-You can clear the release history associated with a deployment using the following command:
+While you can't delete individual releases, you can clear the entire release history associated with a deployment using the following command:
 
 ```
 code-push deployment clear <appName> <deploymentName>
@@ -877,7 +879,7 @@ Developers want to know that the code they ship is the code that they wrote. Cod
 
 ### How does it work?
 
-First, the developer generates an asymmetric key pair: the private key will be used for signing bundles; the public key for bundle signature verification. The CodePush cli then uses the private key to sign bundles during `release` and `release-react` commands. The public key is shipped with the mobile application. Control over the generation and management of keys is in the hands of the developer.
+First, the developer generates an asymmetric key pair: the private key will be used for signing bundles; the public key for bundle signature verification. The CodePush cli then uses the private key to sign bundles during `release`, `release-react` and `release-cordova` commands. The public key is shipped with the mobile application. Control over the generation and management of keys is in the hands of the developer.
 
 At the end of release command, the cli computes the bundle's content hash and places this value into a JWT signed with the private key. When the codepush plugin downloads a bundle to a device, it checks the `.codepushrelease` file containing the JWT and validates the JWT signature using the public key. If validation fails, the update is not installed.
 
@@ -887,16 +889,15 @@ If you are planning to use this feature you need to do the following:
 
 1. Produce new binary update including 
    * updated codepush plugin supporting Code Signing
-   * configure your code-push sdk to use your public key (please, refer relevent [iOS](https://github.com/Microsoft/react-native-code-push/blob/master/docs/setup-ios.md#code-signing-setup) or [Android](https://github.com/Microsoft/react-native-code-push/blob/master/docs/setup-android.md#code-signing-setup) SDK section for details)
+   * configure your code-push sdk to use your public key (please, refer relevent React Native SDK ([iOS](https://github.com/Microsoft/react-native-code-push/blob/master/docs/setup-ios.md#code-signing-setup),  [Android](https://github.com/Microsoft/react-native-code-push/blob/master/docs/setup-android.md#code-signing-setup)) or [Cordova SDK](https://github.com/Microsoft/cordova-plugin-code-push#getting-started) sections for details)
 2. Produce a new CodePush update that targets the new binary version and specifies a `--privateKeyPath` (or simply `-k`) parameter value
 
 Please refer to our compatibility tables to identify if code-signing feature is supported within your SDK/CLI:
 
-|CodePush Component|Version from which Code Signing is supporting|Supported Platform|
-|----|----|----|
-|`code-push` cli|2.1.0||
-|`react-native-code-push` plugin|5.1.0|Android, iOS|
-|`cordova-plugin-code-push` plugin|**Not supported**|**Not supported**|
+|CodePush SDK|Version from which Code Signing is supporting|Supported Platforms|Minimal CodePush CLI version required|
+|----|----|----|----|
+|[`react-native-code-push`](https://github.com/Microsoft/react-native-code-push)|5.1.0|Android, iOS|2.1.0|
+|[`cordova-plugin-code-push`](https://github.com/Microsoft/cordova-plugin-code-push)|1.10.0|Android, iOS|2.1.2|
 
 ### Key generation
 
@@ -978,11 +979,6 @@ A: Signature verification will be skipped and a warning will be written to the a
 Q: I've released newly signed update, but forgot to release a new binary update with the configured public key and updated SDK. What will happen?
 
 A: An application running a CodePush SDK that doesn't support code signing will reject the update. An application running a CodePush SDK that does support code signing but whose public key is out of date will reject the update. If you sign an update with a private key, make sure that you are releasing only to applications configured with a matching public key.
-
-
-Q: The Code Push Cordova SDK doesn't support the code signing feature but I can sign an update for my Cordova app using the general `release` command. What is going to happen if I do so?
-
-A: Your Cordova clients will reject the update. **DO NOT** use the --privateKeyPath (or -k) option to release updates for Cordova based applications. If you accidentally do so, simply release a new update without the --privateKeyPath (or -k) parameter.
 
 
 Q: I've lost my private key, what should I do in this situation?

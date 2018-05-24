@@ -5,6 +5,7 @@ import * as chalk from "chalk";
 var childProcess = require("child_process");
 import debugCommand from "./commands/debug";
 import * as fs from "fs";
+var mkdirp = require("mkdirp");
 var g2js = require("gradle-to-js/lib/parser");
 import * as moment from "moment";
 var opener = require("opener");
@@ -900,7 +901,7 @@ function getReactNativeProjectAppVersion(command: cli.IReleaseReactCommand, proj
         catch (e) { return false }
     };
 
-    // Allow plain integer versions (as well as '1.0' values) for now, e.g. '1' is valid here and we assume that it is equal to '1.0.0'. 
+    // Allow plain integer versions (as well as '1.0' values) for now, e.g. '1' is valid here and we assume that it is equal to '1.0.0'.
     // (missing minor/patch values will be added on server side to pass semver.satisfies check)
     const isValidVersion = (version: string): boolean => !!semver.valid(version) || /^\d+\.\d+$/.test(version) || /^\d+$/.test(version);
 
@@ -1173,17 +1174,7 @@ export var release = (command: cli.IReleaseCommand): Promise<void> => {
 
     throwForInvalidSemverRange(command.appStoreVersion);
 
-    let confirmContinue: Q.Promise<boolean>;
-    if (command.privateKeyPath) {
-        confirmContinue = confirm("You are going to use code signing which is experimental feature. If it is the first time you sign bundle please make sure that you have configured a public key for your client SDK and released new binary version of your app. Also, be sure that this release is targeting to new binary version. You can find more information about code signing feature here: https://github.com/Microsoft/code-push/blob/master/cli/README.md#code-signing  Do you want to continue?");
-    } else {
-        confirmContinue = Q.resolve(true);
-    }
-
-    return confirmContinue.then((result: boolean) => {
-        if (!result) {
-            process.exit();
-        }
+    return Q(<void>null).then(() => {
         // Copy the command so that the original is not modified
         var currentCommand: cli.IReleaseCommand = {
             appName: command.appName,
@@ -1227,7 +1218,14 @@ export var releaseCordova = (command: cli.IReleaseCordovaCommand): Promise<void>
             if (platform === "ios") {
                 outputFolder = path.join(platformFolder, "www");
             } else if (platform === "android") {
-                outputFolder = path.join(platformFolder, "assets", "www");
+                
+                // Since cordova-android 7 assets directory moved to android/app/src/main/assets instead of android/assets                
+                const outputFolderVer7 = path.join(platformFolder, "app", "src", "main", "assets", "www");
+                if (fs.existsSync(outputFolderVer7)) {
+                    outputFolder = outputFolderVer7;
+                } else {
+                    outputFolder = path.join(platformFolder, "assets", "www");
+                }
             } else {
                 throw new Error("Platform must be either \"ios\" or \"android\".");
             }
@@ -1297,6 +1295,12 @@ export var releaseReact = (command: cli.IReleaseReactCommand): Promise<void> => 
     var outputFolder: string = command.outputDir || path.join(os.tmpdir(), "CodePush");
     var platform: string = command.platform = command.platform.toLowerCase();
     var releaseCommand: cli.IReleaseCommand = <any>command;
+
+    // we have to add "CodePush" root forlder to make update contents file structure 
+    // to be compatible with React Native client SDK
+    outputFolder = path.join(outputFolder, "CodePush");
+    mkdirp.sync(outputFolder);
+
     // Check for app and deployment exist before releasing an update.
     // This validation helps to save about 1 minute or more in case user has typed wrong app or deployment name.
     return validateDeployment(command.appName, command.deploymentName)
@@ -1358,7 +1362,7 @@ export var releaseReact = (command: cli.IReleaseReactCommand): Promise<void> => 
                 : getReactNativeProjectAppVersion(command, projectName);
 
             if (command.outputDir) {
-                command.sourcemapOutput = path.join(command.outputDir, bundleName + ".map");
+                command.sourcemapOutput = path.join(releaseCommand.package, bundleName + ".map");
             }
 
             return appVersionPromise;
@@ -1370,7 +1374,7 @@ export var releaseReact = (command: cli.IReleaseReactCommand): Promise<void> => 
         // This is needed to clear the react native bundler cache:
         // https://github.com/facebook/react-native/issues/4289
         .then(() => deleteFolder(`${os.tmpdir()}/react-*`))
-        .then(() => runReactNativeBundleCommand(bundleName, command.development || false, entryFile, outputFolder, platform, command.sourcemapOutput))
+        .then(() => runReactNativeBundleCommand(bundleName, command.development || false, entryFile, outputFolder, platform, command.sourcemapOutput, command.config))
         .then(() => {
             log(chalk.cyan("\nReleasing update contents to CodePush:\n"));
             return release(releaseCommand);
@@ -1435,7 +1439,7 @@ function requestAccessKey(): Promise<string> {
     });
 }
 
-export var runReactNativeBundleCommand = (bundleName: string, development: boolean, entryFile: string, outputFolder: string, platform: string, sourcemapOutput: string): Promise<void> => {
+export var runReactNativeBundleCommand = (bundleName: string, development: boolean, entryFile: string, outputFolder: string, platform: string, sourcemapOutput: string, config: string): Promise<void> => {
     let reactNativeBundleArgs: string[] = [];
     let envNodeArgs: string = process.env.CODE_PUSH_NODE_ARGS;
 
@@ -1454,6 +1458,10 @@ export var runReactNativeBundleCommand = (bundleName: string, development: boole
 
     if (sourcemapOutput) {
         reactNativeBundleArgs.push("--sourcemap-output", sourcemapOutput);
+    }
+
+    if (config) {
+        reactNativeBundleArgs.push("--config", config);
     }
 
     log(chalk.cyan("Running \"react-native bundle\" command:\n"));
